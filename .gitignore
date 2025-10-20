@@ -8,21 +8,18 @@
 # Test binary, built with `go test -c`
 *.test
 
-# Output of the go coverage tool
+# Output of the go coverage tool, specifically when used with LiteIDE
 *.out
 
 # Go workspace file
 go.work
 
-# IDE files
-.vscode/
-.idea/
+# Lambda bootstrap binary
+cmd/lambda/bootstrap
 
-# OS files
-.DS_Store
-Thumbs.db
-.env
-
-# CDK
-infrastructure/node_modules/
+# CDK output
 infrastructure/cdk.out/
+infrastructure/cdk.context.json
+
+# Environment files
+.env
