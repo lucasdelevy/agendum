@@ -1,12 +1,23 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 
+	"agendum/internal/db"
 	"agendum/internal/models"
 )
+
+var dbClient *db.DynamoDBClient
+
+func init() {
+	var err error
+	dbClient, err = db.NewDynamoDBClient()
+	if err != nil {
+		panic(err)
+	}
+}
 
 func CreateUser(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -20,7 +31,10 @@ func CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Printf("User created: %+v\n", user)
+	if err := dbClient.CreateUser(context.Background(), user); err != nil {
+		http.Error(w, "Failed to create user", http.StatusInternalServerError)
+		return
+	}
 	
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)

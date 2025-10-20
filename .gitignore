@@ -21,3 +21,8 @@ go.work
 # OS files
 .DS_Store
 Thumbs.db
+.env
+
+# CDK
+infrastructure/node_modules/
+infrastructure/cdk.out/
