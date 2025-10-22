@@ -7,12 +7,14 @@ import (
 	"strings"
 	"time"
 
+	"agendum/pkg/auth"
+	"agendum/pkg/utils"
+
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
-	"agendum/pkg/utils"
 )
 
 type Team struct {
@@ -22,6 +24,40 @@ type Team struct {
 }
 
 func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+	// Check authentication
+	token := request.Headers["Authorization"]
+	if token == "" {
+		return events.APIGatewayProxyResponse{
+			StatusCode: 401,
+			Headers: map[string]string{
+				"Content-Type":                 "application/json",
+				"Access-Control-Allow-Origin":  "*",
+				"Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
+				"Access-Control-Allow-Methods": "POST,OPTIONS",
+			},
+			Body: `{"message":"Authorization header required"}`,
+		}, nil
+	}
+
+	// Remove "Bearer " prefix if present
+	if strings.HasPrefix(token, "Bearer ") {
+		token = token[7:]
+	}
+
+	_, valid := auth.ValidateToken(token)
+	if !valid {
+		return events.APIGatewayProxyResponse{
+			StatusCode: 401,
+			Headers: map[string]string{
+				"Content-Type":                 "application/json",
+				"Access-Control-Allow-Origin":  "*",
+				"Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
+				"Access-Control-Allow-Methods": "POST,OPTIONS",
+			},
+			Body: `{"message":"Invalid or expired token"}`,
+		}, nil
+	}
+
 	var team Team
 	if err := json.Unmarshal([]byte(request.Body), &team); err != nil {
 		return events.APIGatewayProxyResponse{StatusCode: 400}, err
@@ -52,8 +88,13 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 
 	return events.APIGatewayProxyResponse{
 		StatusCode: 201,
-		Headers:    map[string]string{"Content-Type": "application/json"},
-		Body:       `{"message":"Team created successfully","team_id":"` + teamID + `"}`,
+		Headers: map[string]string{
+			"Content-Type":                 "application/json",
+			"Access-Control-Allow-Origin":  "*",
+			"Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
+			"Access-Control-Allow-Methods": "POST,OPTIONS",
+		},
+		Body: `{"message":"Team created successfully","team_id":"` + teamID + `"}`,
 	}, nil
 }
 

@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"strings"
 	"time"
 
+	"agendum/pkg/auth"
 	"agendum/pkg/utils"
 
 	"github.com/aws/aws-lambda-go/events"
@@ -31,17 +33,68 @@ type WeeklySchedule struct {
 }
 
 type Task struct {
-	Title    string          `json:"title"`
-	TeamID   string          `json:"team_id"`
-	Schedule *WeeklySchedule `json:"schedule"`
-	TaskType string          `json:"task_type"`
-	Owner    string          `json:"owner"`
+	Title     string          `json:"title"`
+	TeamID    string          `json:"team_id"`
+	Schedule  *WeeklySchedule `json:"schedule"`
+	TaskType  string          `json:"task_type"`
+	Requester string          `json:"requester"`
 }
 
 func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+	// Check authentication
+	token := request.Headers["Authorization"]
+	if token == "" {
+		return events.APIGatewayProxyResponse{
+			StatusCode: 401,
+			Headers: map[string]string{
+				"Content-Type":                 "application/json",
+				"Access-Control-Allow-Origin":  "*",
+				"Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
+				"Access-Control-Allow-Methods": "POST,OPTIONS",
+			},
+			Body: `{"message":"Authorization header required"}`,
+		}, nil
+	}
+
+	// Remove "Bearer " prefix if present
+	if strings.HasPrefix(token, "Bearer ") {
+		token = token[7:]
+	}
+
+	username, valid := auth.ValidateToken(token)
+	if !valid {
+		return events.APIGatewayProxyResponse{
+			StatusCode: 401,
+			Headers: map[string]string{
+				"Content-Type":                 "application/json",
+				"Access-Control-Allow-Origin":  "*",
+				"Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
+				"Access-Control-Allow-Methods": "POST,OPTIONS",
+			},
+			Body: `{"message":"Invalid or expired token"}`,
+		}, nil
+	}
+
 	var task Task
 	if err := json.Unmarshal([]byte(request.Body), &task); err != nil {
 		return events.APIGatewayProxyResponse{StatusCode: 400}, err
+	}
+
+	// Set requester to authenticated username
+	task.Requester = username
+
+	// Check if user is admin of the team
+	if !auth.IsTeamAdmin(username, task.TeamID) {
+		return events.APIGatewayProxyResponse{
+			StatusCode: 403,
+			Headers: map[string]string{
+				"Content-Type":                 "application/json",
+				"Access-Control-Allow-Origin":  "*",
+				"Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
+				"Access-Control-Allow-Methods": "POST,OPTIONS",
+			},
+			Body: `{"message":"Only team admins can create tasks"}`,
+		}, nil
 	}
 
 	sess := session.Must(session.NewSession())
@@ -101,7 +154,7 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 		"created_timestamp": {S: aws.String(createdTimestamp)},
 		"schedule":          {M: scheduleMap},
 		"task_type":         {S: aws.String(task.TaskType)},
-		"owner":             {S: aws.String(task.Owner)},
+		"requester":         {S: aws.String(task.Requester)},
 	}
 
 	_, err := svc.PutItem(&dynamodb.PutItemInput{
@@ -115,8 +168,13 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 
 	return events.APIGatewayProxyResponse{
 		StatusCode: 201,
-		Headers:    map[string]string{"Content-Type": "application/json"},
-		Body:       `{"message":"Task created successfully","task_id":"` + taskID + `"}`,
+		Headers: map[string]string{
+			"Content-Type":                 "application/json",
+			"Access-Control-Allow-Origin":  "*",
+			"Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
+			"Access-Control-Allow-Methods": "POST,OPTIONS",
+		},
+		Body: `{"message":"Task created successfully","task_id":"` + taskID + `"}`,
 	}, nil
 }
 

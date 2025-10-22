@@ -44,9 +44,20 @@ POST `/users/create`
 ```json
 {
   "username": "john_doe",
+  "email": "john@example.com",
+  "password": "password123",
   "firstName": "John", 
   "lastName": "Doe",
   "userType": "admin"
+}
+```
+
+### Auth API
+POST `/auth/login`
+```json
+{
+  "email": "john@example.com",
+  "password": "password123"
 }
 ```
 
@@ -79,7 +90,7 @@ POST `/tasks/create`
     }
   },
   "task_type": "meeting",
-  "owner": "john_doe"
+  "requester": "john_doe"
 }
 ```
 
@@ -105,19 +116,41 @@ curl -X POST http://localhost:8080/users/create/ \
 ```
 
 **AWS (Beta):**
+
+### Authentication Workflow
+
+**Step 1: Create User**
 ```bash
-# Create User
-curl -X POST https://ru9oiemsz4.execute-api.us-east-1.amazonaws.com/prod/users/create \
+curl -X POST https://u7zrjhuptb.execute-api.us-east-1.amazonaws.com/prod/users/create \
   -H "Content-Type: application/json" \
-  -d '{"username":"john_doe","firstName":"John","lastName":"Doe","userType":"admin"}'
+  -d '{"username":"john_doe","email":"john@example.com","password":"password123","firstName":"John","lastName":"Doe","userType":"admin"}'
+```
 
-# Create Task
-curl -X POST https://ru9oiemsz4.execute-api.us-east-1.amazonaws.com/prod/tasks/create \
+**Step 2: Login to get token**
+```bash
+curl -X POST https://u7zrjhuptb.execute-api.us-east-1.amazonaws.com/prod/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"title":"Daily Standup","team_id":"team-123","schedule":{"monday":{"begin_time":"09:00","end_time":"09:30"},"tuesday":{"begin_time":"09:00","end_time":"09:30"},"wednesday":{"begin_time":"09:00","end_time":"09:30"},"thursday":{"begin_time":"09:00","end_time":"09:30"},"friday":{"begin_time":"09:00","end_time":"09:30"}},"task_type":"meeting","owner":"john_doe"}'
+  -d '{"email":"john@example.com","password":"password123"}'
+```
 
-# Create Team
-curl -X POST https://ru9oiemsz4.execute-api.us-east-1.amazonaws.com/prod/teams/create \
+**Step 3: Create Team (requires auth token)**
+```bash
+curl -X POST https://u7zrjhuptb.execute-api.us-east-1.amazonaws.com/prod/teams/create \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_TOKEN_FROM_STEP_2" \
   -d '{"name":"Development Team","admins":["john_doe","jane_smith"],"members":["alice_jones","bob_wilson"]}'
 ```
+
+**Step 4: Create Task (requires auth token + team admin)**
+```bash
+curl -X POST https://u7zrjhuptb.execute-api.us-east-1.amazonaws.com/prod/tasks/create \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_TOKEN_FROM_STEP_2" \
+  -d '{"title":"Daily Standup","team_id":"TEAM_ID_FROM_STEP_3","schedule":{"monday":{"begin_time":"09:00","end_time":"09:30"},"tuesday":{"begin_time":"09:00","end_time":"09:30"},"wednesday":{"begin_time":"09:00","end_time":"09:30"},"thursday":{"begin_time":"09:00","end_time":"09:30"},"friday":{"begin_time":"09:00","end_time":"09:30"}},"task_type":"meeting"}'
+```
+
+**Note:** 
+- Replace `YOUR_TOKEN_FROM_STEP_2` with the actual token returned from login
+- Replace `TEAM_ID_FROM_STEP_3` with the team_id returned from team creation
+- Tasks can only be created by team admins
+- Tokens expire after 24 hours
