@@ -4,7 +4,6 @@ import (
 	"os"
 
 	"github.com/aws/aws-cdk-go/awscdk/v2"
-	"github.com/aws/constructs-go/constructs/v10"
 	"github.com/aws/jsii-runtime-go"
 )
 
@@ -12,7 +11,9 @@ func main() {
 	defer jsii.Close()
 
 	app := awscdk.NewApp(nil)
-	NewAgendumStack(app, "Agendum-UserStack", &awscdk.StackProps{
+
+	// Beta Stack
+	NewUserStack(app, "User-Beta-Stack", "Beta", &awscdk.StackProps{
 		Env: env(),
 	})
 
@@ -24,12 +25,4 @@ func env() *awscdk.Environment {
 		Account: jsii.String(os.Getenv("CDK_DEFAULT_ACCOUNT")),
 		Region:  jsii.String(os.Getenv("CDK_DEFAULT_REGION")),
 	}
-}
-
-func NewAgendumStack(scope constructs.Construct, id string, props *awscdk.StackProps) awscdk.Stack {
-	stack := awscdk.NewStack(scope, &id, props)
-
-	NewAgendumInfrastructure(stack, "AgendumInfra")
-
-	return stack
 }
