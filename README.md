@@ -20,6 +20,7 @@ export AWS_PROFILE=target-account
 cd cmd/lambda-user && go mod tidy && make build && cd ..
 cd lambda-task && go mod tidy && make build && cd ..
 cd lambda-team && go mod tidy && make build && cd ..
+cd lambda-list-teams && go mod tidy && make build && cd ..
 cd ../infrastructure
 ```
 
@@ -106,6 +107,21 @@ POST `/teams/create`
 }
 ```
 
+GET `/teams/list` (requires auth token)
+Returns list of teams the authenticated user belongs to.
+
+Response:
+```json
+[
+  {
+    "team_id": "team-123",
+    "name": "Development Team",
+    "admins": ["john_doe", "jane_smith"],
+    "members": ["alice_jones", "bob_wilson"]
+  }
+]
+```
+
 ## Testing
 
 **Local:**
@@ -141,7 +157,13 @@ curl -X POST https://u7zrjhuptb.execute-api.us-east-1.amazonaws.com/prod/teams/c
   -d '{"name":"Development Team","admins":["john_doe","jane_smith"],"members":["alice_jones","bob_wilson"]}'
 ```
 
-**Step 4: Create Task (requires auth token + team admin)**
+**Step 4: List Teams (requires auth token)**
+```bash
+curl -X GET https://u7zrjhuptb.execute-api.us-east-1.amazonaws.com/prod/teams/list \
+  -H "Authorization: Bearer YOUR_TOKEN_FROM_STEP_2"
+```
+
+**Step 5: Create Task (requires auth token + team admin)**
 ```bash
 curl -X POST https://u7zrjhuptb.execute-api.us-east-1.amazonaws.com/prod/tasks/create \
   -H "Content-Type: application/json" \

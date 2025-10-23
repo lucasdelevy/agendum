@@ -14,12 +14,13 @@ import (
 )
 
 type User struct {
-	Username  string `json:"username"`
-	Email     string `json:"email"`
-	Password  string `json:"password"`
-	FirstName string `json:"firstName"`
-	LastName  string `json:"lastName"`
-	UserType  string `json:"userType"`
+	Username  string   `json:"username"`
+	Email     string   `json:"email"`
+	Password  string   `json:"password"`
+	FirstName string   `json:"firstName"`
+	LastName  string   `json:"lastName"`
+	UserType  string   `json:"userType"`
+	TeamIDs   []string `json:"teamIds"`
 }
 
 func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
@@ -44,6 +45,7 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 		"firstName": {S: aws.String(user.FirstName)},
 		"lastName":  {S: aws.String(user.LastName)},
 		"userType":  {S: aws.String(user.UserType)},
+		"teamIds":   {L: []*dynamodb.AttributeValue{}},
 	}
 
 	_, err = svc.PutItem(&dynamodb.PutItemInput{

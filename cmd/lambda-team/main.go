@@ -86,6 +86,26 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 		return events.APIGatewayProxyResponse{StatusCode: 500}, err
 	}
 
+	// Update user records to include this team ID
+	allUsers := append(team.Admins, team.Members...)
+	for _, username := range allUsers {
+		_, err := svc.UpdateItem(&dynamodb.UpdateItemInput{
+			TableName: aws.String(os.Getenv("USERS_TABLE_NAME")),
+			Key: map[string]*dynamodb.AttributeValue{
+				"username": {S: aws.String(username)},
+			},
+			UpdateExpression: aws.String("SET teamIds = list_append(if_not_exists(teamIds, :empty_list), :teamId)"),
+			ExpressionAttributeValues: map[string]*dynamodb.AttributeValue{
+				":teamId": {L: []*dynamodb.AttributeValue{{S: aws.String(teamID)}}},
+				":empty_list": {L: []*dynamodb.AttributeValue{}},
+			},
+		})
+		if err != nil {
+			// Continue even if user update fails
+			continue
+		}
+	}
+
 	return events.APIGatewayProxyResponse{
 		StatusCode: 201,
 		Headers: map[string]string{

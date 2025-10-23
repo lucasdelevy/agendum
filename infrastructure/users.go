@@ -85,6 +85,7 @@ func NewUserInfrastructure(scope constructs.Construct, id string, stage string) 
 		Code:    awslambda.Code_FromAsset(jsii.String("../cmd/lambda-team"), nil),
 		Environment: &map[string]*string{
 			"TABLE_NAME": teamsTable.TableName(),
+			"USERS_TABLE_NAME": usersTable.TableName(),
 			"SESSIONS_TABLE_NAME": sessionsTable.TableName(),
 		},
 	})
@@ -100,15 +101,31 @@ func NewUserInfrastructure(scope constructs.Construct, id string, stage string) 
 		},
 	})
 
+	listTeamsLambda := awslambda.NewFunction(scope, jsii.String(stage+"-ListTeamsLambda"), &awslambda.FunctionProps{
+		FunctionName: jsii.String(stage + "-ListTeamsLambda"),
+		Runtime: awslambda.Runtime_PROVIDED_AL2023(),
+		Handler: jsii.String("bootstrap"),
+		Code:    awslambda.Code_FromAsset(jsii.String("../cmd/lambda-list-teams"), nil),
+		Environment: &map[string]*string{
+			"USERS_TABLE_NAME": usersTable.TableName(),
+			"TEAMS_TABLE_NAME": teamsTable.TableName(),
+			"SESSIONS_TABLE_NAME": sessionsTable.TableName(),
+		},
+	})
+
 	// Grant permissions
 	usersTable.GrantWriteData(createUserLambda)
 	usersTable.GrantReadData(authLambda)
+	usersTable.GrantReadData(listTeamsLambda)
+	usersTable.GrantWriteData(createTeamLambda)
 	tasksTable.GrantWriteData(createTaskLambda)
 	teamsTable.GrantWriteData(createTeamLambda)
 	teamsTable.GrantReadData(createTaskLambda)
+	teamsTable.GrantReadData(listTeamsLambda)
 	sessionsTable.GrantWriteData(authLambda)
 	sessionsTable.GrantReadData(createTaskLambda)
 	sessionsTable.GrantReadData(createTeamLambda)
+	sessionsTable.GrantReadData(listTeamsLambda)
 
 	// API Gateway
 	api := awsapigateway.NewRestApi(scope, jsii.String(stage+"-AgendumApi"), &awsapigateway.RestApiProps{
@@ -154,6 +171,11 @@ func NewUserInfrastructure(scope constructs.Construct, id string, stage string) 
 		DefaultCorsPreflightOptions: corsOptions,
 	})
 	teamsCreate.AddMethod(jsii.String("POST"), awsapigateway.NewLambdaIntegration(createTeamLambda, nil), nil)
+
+	teamsList := teams.AddResource(jsii.String("list"), &awsapigateway.ResourceOptions{
+		DefaultCorsPreflightOptions: corsOptions,
+	})
+	teamsList.AddMethod(jsii.String("GET"), awsapigateway.NewLambdaIntegration(listTeamsLambda, nil), nil)
 
 	// Auth endpoints
 	auth := api.Root().AddResource(jsii.String("auth"), &awsapigateway.ResourceOptions{
