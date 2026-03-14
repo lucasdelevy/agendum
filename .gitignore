@@ -14,8 +14,8 @@
 # Go workspace file
 go.work
 
-# Lambda bootstrap binary
-cmd/lambda/bootstrap
+# Lambda bootstrap binaries
+cmd/lambda-*/bootstrap
 
 # CDK output
 infrastructure/cdk.out/

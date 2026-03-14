@@ -1,42 +1,88 @@
 # Agendum
 
+A task and team management API built with Go, deployed to AWS using Lambda, API Gateway, and DynamoDB.
+
+## Prerequisites
+
+- [Go 1.21+](https://go.dev/dl/)
+- [AWS CLI](https://aws.amazon.com/cli/) (configured with credentials)
+- [AWS CDK](https://docs.aws.amazon.com/cdk/v2/guide/getting-started.html) (`npm install -g aws-cdk`)
+- [Node.js 18+](https://nodejs.org/) (required by CDK)
+
 ## Local Development
 
 ```bash
-go run cmd/server/main.go
+make run
 ```
 
-## Infrastructure Deployment
+This starts the local HTTP server on port 8080.
 
-### Configure AWS Account
+## Deployment
+
+### Quick Deploy (one command)
+
+```bash
+./deploy.sh
+```
+
+For first-time setup (bootstraps CDK):
+
+```bash
+./deploy.sh --bootstrap
+```
+
+### Using Make
+
+```bash
+# Build all Lambda functions
+make build
+
+# Build and deploy to AWS
+make deploy
+
+# First-time CDK bootstrap
+make bootstrap
+
+# Clean build artifacts
+make clean
+```
+
+### Manual Step-by-Step
+
+1. Configure AWS credentials:
 ```bash
 aws configure --profile target-account
-# Enter credentials for target account
 export AWS_PROFILE=target-account
 ```
 
-### Build Lambda Functions
+2. Build all Lambda functions:
 ```bash
-cd cmd/lambda-user && go mod tidy && make build && cd ..
-cd lambda-task && go mod tidy && make build && cd ..
-cd lambda-team && go mod tidy && make build && cd ..
-cd lambda-list-teams && go mod tidy && make build && cd ..
-cd ../infrastructure
+make build
 ```
 
-### Deploy Infrastructure
+3. Bootstrap CDK (first time only):
 ```bash
-go mod tidy
+make bootstrap
 ```
 
-If first time:
-```
-cdk bootstrap
+4. Deploy:
+```bash
+make deploy
 ```
 
-```
-cdk deploy --require-approval never
-```
+## CI/CD
+
+This project includes a GitHub Actions workflow (`.github/workflows/deploy.yml`) that:
+
+- **On pull requests**: Builds all Lambda functions to validate the code compiles
+- **On push to main**: Builds and deploys to AWS automatically
+
+To enable CI/CD, add these secrets to your GitHub repository:
+
+| Secret | Description |
+|--------|-------------|
+| `AWS_ROLE_ARN` | IAM role ARN for GitHub Actions OIDC authentication |
+| `AWS_REGION` | AWS region to deploy to (e.g., `us-east-1`) |
 
 ## API Endpoints
 
