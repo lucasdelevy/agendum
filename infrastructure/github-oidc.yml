@@ -1,0 +1,110 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  GitHub Actions OIDC provider and IAM deploy role for Agendum.
+  Run once per AWS account to allow GitHub Actions to deploy via CDK.
+
+Parameters:
+  GitHubOrg:
+    Type: String
+    Default: lucasdelevy
+    Description: GitHub organization or username
+
+  GitHubRepo:
+    Type: String
+    Default: agendum
+    Description: GitHub repository name
+
+  DeployBranch:
+    Type: String
+    Default: main
+    Description: Branch allowed to deploy (leave empty to allow all branches)
+
+  OIDCProviderArn:
+    Type: String
+    Default: ""
+    Description: >
+      Existing GitHub OIDC provider ARN. Leave empty to create a new one.
+      If your account already has a GitHub OIDC provider (from another repo),
+      paste its ARN here to reuse it.
+
+Conditions:
+  CreateOIDCProvider: !Equals [!Ref OIDCProviderArn, ""]
+  HasDeployBranch: !Not [!Equals [!Ref DeployBranch, ""]]
+
+Resources:
+  GitHubOIDCProvider:
+    Type: AWS::IAM::OIDCIdentityProvider
+    Condition: CreateOIDCProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList:
+        - sts.amazonaws.com
+      ThumbprintList:
+        - 6938fd4d98bab03faadb97b34396831e3780aea1
+        - 1c58a3a8518e8759bf075b76b750d4f2df264fcd
+
+  GitHubActionsDeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "github-actions-${GitHubRepo}-deploy"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !If
+                - CreateOIDCProvider
+                - !Ref GitHubOIDCProvider
+                - !Ref OIDCProviderArn
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+              StringLike:
+                token.actions.githubusercontent.com:sub: !If
+                  - HasDeployBranch
+                  - !Sub "repo:${GitHubOrg}/${GitHubRepo}:ref:refs/heads/${DeployBranch}"
+                  - !Sub "repo:${GitHubOrg}/${GitHubRepo}:*"
+      MaxSessionDuration: 3600
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/PowerUserAccess
+      Policies:
+        - PolicyName: CDKDeployPermissions
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: AllowIAMForCDK
+                Effect: Allow
+                Action:
+                  - iam:CreateRole
+                  - iam:DeleteRole
+                  - iam:AttachRolePolicy
+                  - iam:DetachRolePolicy
+                  - iam:PutRolePolicy
+                  - iam:DeleteRolePolicy
+                  - iam:GetRole
+                  - iam:GetRolePolicy
+                  - iam:PassRole
+                  - iam:TagRole
+                  - iam:UntagRole
+                  - iam:UpdateRole
+                  - iam:UpdateAssumeRolePolicy
+                  - iam:ListRolePolicies
+                  - iam:ListAttachedRolePolicies
+                Resource: "*"
+
+Outputs:
+  DeployRoleArn:
+    Description: >
+      IAM role ARN for GitHub Actions. Add this as the AWS_ROLE_ARN secret
+      in your GitHub repository settings.
+    Value: !GetAtt GitHubActionsDeployRole.Arn
+
+  OIDCProviderArn:
+    Description: >
+      OIDC provider ARN. Save this if you need to set up additional repos
+      in the same account (pass it as the OIDCProviderArn parameter).
+    Value: !If
+      - CreateOIDCProvider
+      - !Ref GitHubOIDCProvider
+      - !Ref OIDCProviderArn

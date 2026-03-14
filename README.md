@@ -77,12 +77,42 @@ This project includes a GitHub Actions workflow (`.github/workflows/deploy.yml`)
 - **On pull requests**: Builds all Lambda functions to validate the code compiles
 - **On push to main**: Builds and deploys to AWS automatically
 
-To enable CI/CD, add these secrets to your GitHub repository:
+### Setting Up AWS OIDC for GitHub Actions
 
-| Secret | Description |
-|--------|-------------|
-| `AWS_ROLE_ARN` | IAM role ARN for GitHub Actions OIDC authentication |
-| `AWS_REGION` | AWS region to deploy to (e.g., `us-east-1`) |
+GitHub Actions authenticates to AWS using OIDC (OpenID Connect) -- no long-lived access keys needed. A one-time setup script creates the required IAM resources in your AWS account.
+
+**Step 1: Run the setup script**
+
+Make sure your AWS CLI is configured with credentials that have IAM and CloudFormation permissions, then run:
+
+```bash
+./setup-aws-oidc.sh --region us-east-1
+```
+
+This creates:
+- A GitHub OIDC identity provider in your AWS account (if one doesn't already exist)
+- An IAM role (`github-actions-agendum-deploy`) that GitHub Actions can assume, scoped to pushes on the `main` branch of this repo
+
+The script prints the role ARN when it finishes.
+
+**Step 2: Add GitHub secrets**
+
+Go to [repository secrets](https://github.com/lucasdelevy/agendum/settings/secrets/actions) and add:
+
+| Secret | Value |
+|--------|-------|
+| `AWS_ROLE_ARN` | The role ARN printed by the setup script |
+| `AWS_REGION` | Your target region (e.g., `us-east-1`) |
+
+That's it -- pushes to `main` will now automatically build and deploy.
+
+**Options:**
+
+```bash
+./setup-aws-oidc.sh --help            # show all options
+./setup-aws-oidc.sh --region us-west-2 # deploy to a different region
+./setup-aws-oidc.sh --delete           # tear down the OIDC stack
+```
 
 ## API Endpoints
 

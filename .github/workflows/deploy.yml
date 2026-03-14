@@ -79,8 +79,17 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Deploy CDK stack
+      - name: Set CDK environment variables
+        run: |
+          echo "CDK_DEFAULT_ACCOUNT=$(aws sts get-caller-identity --query Account --output text)" >> "$GITHUB_ENV"
+          echo "CDK_DEFAULT_REGION=${{ secrets.AWS_REGION }}" >> "$GITHUB_ENV"
+
+      - name: CDK bootstrap (if needed)
         working-directory: infrastructure
         run: |
           go mod tidy
-          cdk deploy --require-approval never
+          cdk bootstrap --no-execute 2>/dev/null || cdk bootstrap
+
+      - name: Deploy CDK stack
+        working-directory: infrastructure
+        run: cdk deploy --require-approval never
