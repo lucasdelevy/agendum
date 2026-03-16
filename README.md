@@ -1,41 +1,117 @@
 # Agendum
 
+A task and team management API built with Go, deployed to AWS using Lambda, API Gateway, and DynamoDB.
+
+## Prerequisites
+
+- [Go 1.21+](https://go.dev/dl/)
+- [AWS CLI](https://aws.amazon.com/cli/) (configured with credentials)
+- [AWS CDK](https://docs.aws.amazon.com/cdk/v2/guide/getting-started.html) (`npm install -g aws-cdk`)
+- [Node.js 18+](https://nodejs.org/) (required by CDK)
+
 ## Local Development
 
 ```bash
-go run cmd/server/main.go
+make run
 ```
 
-## Infrastructure Deployment
+This starts the local HTTP server on port 8080.
 
-### Configure AWS Account
+## Deployment
+
+### Quick Deploy (one command)
+
+```bash
+./deploy.sh
+```
+
+For first-time setup (bootstraps CDK):
+
+```bash
+./deploy.sh --bootstrap
+```
+
+### Using Make
+
+```bash
+# Build all Lambda functions
+make build
+
+# Build and deploy to AWS
+make deploy
+
+# First-time CDK bootstrap
+make bootstrap
+
+# Clean build artifacts
+make clean
+```
+
+### Manual Step-by-Step
+
+1. Configure AWS credentials:
 ```bash
 aws configure --profile target-account
-# Enter credentials for target account
 export AWS_PROFILE=target-account
 ```
 
-### Build Lambda Functions
+2. Build all Lambda functions:
 ```bash
-cd cmd/lambda-user && go mod tidy && make build && cd ..
-cd lambda-task && go mod tidy && make build && cd ..
-cd lambda-team && go mod tidy && make build && cd ..
-cd lambda-list-teams && go mod tidy && make build && cd ..
-cd ../infrastructure
+make build
 ```
 
-### Deploy Infrastructure
+3. Bootstrap CDK (first time only):
 ```bash
-go mod tidy
+make bootstrap
 ```
 
-If first time:
-```
-cdk bootstrap
+4. Deploy:
+```bash
+make deploy
 ```
 
+## CI/CD
+
+This project includes a GitHub Actions workflow (`.github/workflows/deploy.yml`) that:
+
+- **On pull requests**: Builds all Lambda functions to validate the code compiles
+- **On push to main**: Builds and deploys to AWS automatically
+
+### Setting Up AWS OIDC for GitHub Actions
+
+GitHub Actions authenticates to AWS using OIDC (OpenID Connect) -- no long-lived access keys needed. A one-time setup script creates the required IAM resources in your AWS account.
+
+**Step 1: Run the setup script**
+
+Make sure your AWS CLI is configured with credentials that have IAM and CloudFormation permissions, then run:
+
+```bash
+./setup-aws-oidc.sh --region us-east-1
 ```
-cdk deploy --require-approval never
+
+This creates:
+- A GitHub OIDC identity provider in your AWS account (if one doesn't already exist)
+- An IAM role (`github-actions-agendum-deploy`) that GitHub Actions can assume, scoped to pushes on the `main` branch of this repo
+
+The script prints the role ARN when it finishes.
+
+**Step 2: Add GitHub secrets**
+
+Go to [repository secrets](https://github.com/lucasdelevy/agendum/settings/secrets/actions) and add:
+
+| Secret | Value |
+|--------|-------|
+| `AWS_ROLE_ARN` | The role ARN printed by the setup script |
+| `AWS_REGION` | Your target region (e.g., `us-east-1`) |
+
+That's it -- pushes to `main` will now automatically build and deploy.
+
+**Options:**
+
+```bash
+./setup-aws-oidc.sh --help            # show all options
+./setup-aws-oidc.sh --region us-west-2 # deploy to a different region
+./setup-aws-oidc.sh --delete           # tear down the OIDC stack
 ```
 
 ## API Endpoints
